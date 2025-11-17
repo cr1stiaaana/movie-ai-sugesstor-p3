@@ -438,3 +438,5 @@
 2025-11-18 00:40:38,521 - werkzeug - INFO - 127.0.0.1 - - [18/Nov/2025 00:40:38] "GET /api/movies HTTP/1.1" 200 -
 2025-11-18 00:40:38,878 - werkzeug - INFO - 127.0.0.1 - - [18/Nov/2025 00:40:38] "GET /api/movies HTTP/1.1" 200 -
 2025-11-18 00:40:39,586 - werkzeug - INFO - 127.0.0.1 - - [18/Nov/2025 00:40:39] "GET /api/movies HTTP/1.1" 200 -
+2025-11-18 00:40:54,363 - werkzeug - INFO - 127.0.0.1 - - [18/Nov/2025 00:40:54] "GET /api/movies HTTP/1.1" 200 -
+2025-11-18 00:40:55,013 - werkzeug - INFO - 127.0.0.1 - - [18/Nov/2025 00:40:55] "GET /api/movies HTTP/1.1" 200 -
