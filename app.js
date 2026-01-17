@@ -3,15 +3,50 @@ const API_BASE_URL = 'http://localhost:5000/api';
 
 // State
 let currentMovieForRating = null;
+let authToken = localStorage.getItem('authToken');
+let currentUser = JSON.parse(localStorage.getItem('currentUser') || 'null');
+let darkTheme = localStorage.getItem('darkTheme') === 'true';
 
 // Initialize app
 document.addEventListener('DOMContentLoaded', function() {
+    initializeTheme();
+    checkAuth();
     initializeTabs();
     initializeUpload();
     initializeSearch();
     initializeRecommendations();
     loadCollection();
 });
+
+// Theme Management
+function initializeTheme() {
+    const themeToggle = document.getElementById('themeToggle');
+    
+    // Apply saved theme
+    if (darkTheme) {
+        document.body.classList.add('dark-theme');
+        themeToggle.textContent = '☀️';
+    } else {
+        themeToggle.textContent = '🌙';
+    }
+    
+    // Toggle theme on button click
+    themeToggle.addEventListener('click', toggleTheme);
+}
+
+function toggleTheme() {
+    darkTheme = !darkTheme;
+    localStorage.setItem('darkTheme', darkTheme);
+    
+    const themeToggle = document.getElementById('themeToggle');
+    if (darkTheme) {
+        document.body.classList.add('dark-theme');
+        themeToggle.textContent = '☀️';
+    } else {
+        document.body.classList.remove('dark-theme');
+        themeToggle.textContent = '🌙';
+    }
+}
 
 // Tab Management
 function initializeTabs() {
@@ -91,6 +126,9 @@ async function handleFile(file) {
     try {
         const response = await fetch(`${API_BASE_URL}/upload-csv`, {
             method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${authToken}`
+            },
             body: formData
         });
 
@@ -138,7 +176,7 @@ async function handleSearch(event) {
 
         const response = await fetch(`${API_BASE_URL}/add-movie`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: getAuthHeaders(),
             body: JSON.stringify(params)
         });
 
@@ -211,7 +249,7 @@ async function submitMovieRating(event, tmdbId) {
     try {
         const response = await fetch(`${API_BASE_URL}/add-movie`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: getAuthHeaders(),
             body: JSON.stringify({
                 tmdb_id: tmdbId,
                 rating: rating,
@@ -237,21 +275,41 @@ async function submitMovieRating(event, tmdbId) {
 }
 
 // Recommendations
+let currentRecommendationOffset = 0;
+let allRecommendations = [];
+
 function initializeRecommendations() {
     const generateBtn = document.getElementById('generateBtn');
+    const loadMoreBtn = document.getElementById('loadMoreBtn');
     generateBtn.addEventListener('click', generateRecommendations);
+    loadMoreBtn.addEventListener('click', loadMoreRecommendations);
 }
 
 async function generateRecommendations() {
     showLoading(true);
     document.getElementById('recommendationsList').innerHTML = '';
+    currentRecommendationOffset = 0;
+    allRecommendations = [];
 
     try {
-        const response = await fetch(`${API_BASE_URL}/recommendations`);
+        const response = await fetch(`${API_BASE_URL}/recommendations`, {
+            headers: getAuthHeaders()
+        });
         const data = await response.json();
 
         if (response.ok && data.success) {
-            displayRecommendations(data.recommendations);
+            allRecommendations = data.recommendations;
+            displayRecommendations(allRecommendations.slice(0, 10));
+            
+            // Show load more button if there are more recommendations
+            const loadMoreBtn = document.getElementById('loadMoreBtn');
+            if (allRecommendations.length > 10) {
+                loadMoreBtn.style.display = 'block';
+                currentRecommendationOffset = 10;
+            } else {
+                loadMoreBtn.style.display = 'none';
+            }
+            
             showStatus('recommendationsStatus', 
                 `Found ${data.count} personalized recommendations for you!`, 
                 'success');
@@ -268,33 +326,72 @@ async function generateRecommendations() {
     }
 }
 
+function loadMoreRecommendations() {
+    const container = document.getElementById('recommendationsList');
+    const nextBatch = allRecommendations.slice(currentRecommendationOffset, currentRecommendationOffset + 10);
+    
+    if (nextBatch.length === 0) {
+        document.getElementById('loadMoreBtn').style.display = 'none';
+        showStatus('recommendationsStatus', 'No more recommendations available', 'info');
+        return;
+    }
+    
+    // Append new recommendations
+    nextBatch.forEach(movie => {
+        const movieCard = createMovieCard(movie);
+        container.appendChild(movieCard);
+    });
+    
+    currentRecommendationOffset += 10;
+    
+    // Hide load more button if we've shown all
+    if (currentRecommendationOffset >= allRecommendations.length) {
+        document.getElementById('loadMoreBtn').style.display = 'none';
+    }
+}
+
+function createMovieCard(movie) {
+    const div = document.createElement('div');
+    div.className = 'movie-card';
+    div.onclick = () => showMovieDetails(movie.tmdb_id);
+    div.innerHTML = `
+        <img src="${movie.poster_path || 'https://via.placeholder.com/200x300?text=No+Image'}" 
+             alt="${movie.title}" 
+             class="movie-poster"
+             onerror="this.src='https://via.placeholder.com/200x300?text=No+Image'">
+        <div class="movie-info">
+            <div class="movie-title">${movie.title}</div>
+            <div class="movie-meta">${movie.year || 'N/A'} • ${movie.genres ? movie.genres.slice(0, 2).join(', ') : 'N/A'}</div>
+            <div class="match-score">${Math.round(movie.match_score || 0)}% Match</div>
+            <div class="movie-reasoning">${movie.reasoning || 'Recommended for you'}</div>
+        </div>
+    `;
+    return div;
+}
+
 function displayRecommendations(recommendations) {
     const container = document.getElementById('recommendationsList');
 
-    if (recommendations.length === 0) {
+    if (!recommendations || recommendations.length === 0) {
         container.innerHTML = '<p>No recommendations available</p>';
         return;
     }
 
-    container.innerHTML = recommendations.map(movie => `
-        <div class="movie-card" onclick="showMovieDetails(${movie.tmdb_id})">
-            <img src="${movie.poster_path || 'https://via.placeholder.com/200x300?text=No+Image'}" 
-                 alt="${movie.title}" 
-                 class="movie-poster">
-            <div class="movie-info">
-                <div class="movie-title">${movie.title}</div>
-                <div class="movie-meta">${movie.year || 'N/A'} • ${movie.genres ? movie.genres.slice(0, 2).join(', ') : 'N/A'}</div>
-                <div class="match-score">${movie.match_score}% Match</div>
-                <div class="movie-reasoning">${movie.reasoning}</div>
-            </div>
-        </div>
-    `).join('');
+    console.log('Displaying recommendations:', recommendations);
+
+    container.innerHTML = '';
+    recommendations.forEach(movie => {
+        const movieCard = createMovieCard(movie);
+        container.appendChild(movieCard);
+    });
 }
 
 // Collection
 async function loadCollection() {
     try {
-        const response = await fetch(`${API_BASE_URL}/movies`);
+        const response = await fetch(`${API_BASE_URL}/movies`, {
+            headers: getAuthHeaders()
+        });
         const data = await response.json();
 
         if (response.ok) {
@@ -317,17 +414,47 @@ function displayCollection(movies, count) {
     }
 
     listContainer.innerHTML = movies.map(movie => `
-        <div class="movie-card" onclick="showMovieDetails(${movie.tmdb_id})">
+        <div class="movie-card">
             <img src="${movie.poster_path || 'https://via.placeholder.com/200x300?text=No+Image'}" 
                  alt="${movie.title}" 
-                 class="movie-poster">
+                 class="movie-poster"
+                 onclick="showMovieDetails(${movie.tmdb_id})"
+                 style="cursor: pointer;">
             <div class="movie-info">
                 <div class="movie-title">${movie.title}</div>
                 <div class="movie-meta">${movie.year || 'N/A'} • ${movie.genres ? movie.genres.slice(0, 2).join(', ') : 'N/A'}</div>
                 ${movie.rating ? `<div class="match-score">Your Rating: ${movie.rating}/10</div>` : ''}
+                <button class="btn-delete" onclick="deleteMovie(${movie.tmdb_id}, event)">🗑️ Delete</button>
             </div>
         </div>
     `).join('');
+}
+
+// Delete Movie
+async function deleteMovie(tmdbId, event) {
+    event.stopPropagation();
+    
+    if (!confirm('Are you sure you want to delete this movie from your collection?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`${API_BASE_URL}/delete-movie/${tmdbId}`, {
+            method: 'DELETE',
+            headers: getAuthHeaders()
+        });
+        
+        if (response.ok) {
+            showStatus('collectionStatus', 'Movie deleted successfully', 'success');
+            loadCollection();
+        } else {
+            const error = await response.json();
+            showStatus('collectionStatus', error.error || 'Failed to delete movie', 'error');
+        }
+    } catch (error) {
+        console.error('Delete movie error:', error);
+        showStatus('collectionStatus', 'Error deleting movie', 'error');
+    }
 }
 
 // Movie Details Modal
@@ -335,7 +462,9 @@ async function showMovieDetails(tmdbId) {
     showLoading(true);
 
     try {
-        const response = await fetch(`${API_BASE_URL}/movie/${tmdbId}`);
+        const response = await fetch(`${API_BASE_URL}/movie/${tmdbId}`, {
+            headers: getAuthHeaders()
+        });
         const movie = await response.json();
 
         if (response.ok) {
@@ -419,4 +548,320 @@ function showLoading(show) {
     } else {
         spinner.classList.remove('show');
     }
+}
+
+
+// Chat functionality
+function initializeChat() {
+    const chatForm = document.getElementById('chatForm');
+    const resetBtn = document.getElementById('resetChatBtn');
+    
+    if (chatForm) {
+        chatForm.addEventListener('submit', handleChatSubmit);
+    }
+    
+    if (resetBtn) {
+        resetBtn.addEventListener('click', resetChat);
+    }
+}
+
+async function handleChatSubmit(event) {
+    event.preventDefault();
+    
+    const input = document.getElementById('chatInput');
+    const message = input.value.trim();
+    
+    if (!message) return;
+    
+    // Add user message to chat
+    addMessageToChat(message, 'user');
+    
+    // Clear input
+    input.value = '';
+    
+    // Show typing indicator
+    showTypingIndicator();
+    
+    try {
+        const response = await fetch(`${API_BASE_URL}/chat`, {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ message })
+        });
+        
+        const data = await response.json();
+        
+        // Remove typing indicator
+        removeTypingIndicator();
+        
+        if (response.ok && data.success) {
+            // Add bot response to chat
+            addMessageToChat(data.response, 'bot');
+            
+            // If there are movie suggestions, display them
+            if (data.suggestions && data.suggestions.length > 0) {
+                displayChatSuggestions(data.suggestions);
+            }
+        } else {
+            addMessageToChat(
+                data.message || 'Sorry, I encountered an error. Please try again.',
+                'bot'
+            );
+        }
+    } catch (error) {
+        console.error('Chat error:', error);
+        removeTypingIndicator();
+        addMessageToChat(
+            'Sorry, I\'m having trouble connecting. Make sure the backend is running and OpenAI API key is configured.',
+            'bot'
+        );
+    }
+}
+
+function addMessageToChat(message, sender) {
+    const messagesContainer = document.getElementById('chatMessages');
+    
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `chat-message ${sender}-message`;
+    
+    const contentDiv = document.createElement('div');
+    contentDiv.className = 'message-content';
+    contentDiv.textContent = message;
+    
+    messageDiv.appendChild(contentDiv);
+    messagesContainer.appendChild(messageDiv);
+    
+    // Scroll to bottom
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+}
+
+function showTypingIndicator() {
+    const messagesContainer = document.getElementById('chatMessages');
+    
+    const typingDiv = document.createElement('div');
+    typingDiv.className = 'chat-message bot-message';
+    typingDiv.id = 'typingIndicator';
+    
+    const indicatorDiv = document.createElement('div');
+    indicatorDiv.className = 'typing-indicator';
+    indicatorDiv.innerHTML = `
+        <div class="typing-dot"></div>
+        <div class="typing-dot"></div>
+        <div class="typing-dot"></div>
+    `;
+    
+    typingDiv.appendChild(indicatorDiv);
+    messagesContainer.appendChild(typingDiv);
+    
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+}
+
+function removeTypingIndicator() {
+    const indicator = document.getElementById('typingIndicator');
+    if (indicator) {
+        indicator.remove();
+    }
+}
+
+function displayChatSuggestions(suggestions) {
+    // Display movie suggestions with posters in the chat
+    const messagesContainer = document.getElementById('chatMessages');
+    
+    if (!suggestions || suggestions.length === 0) {
+        return;
+    }
+    
+    const suggestionsDiv = document.createElement('div');
+    suggestionsDiv.className = 'chat-message bot-message';
+    
+    const contentDiv = document.createElement('div');
+    contentDiv.className = 'message-content';
+    
+    // Create a grid of movie cards
+    const moviesHtml = suggestions.map(movie => `
+        <div class="chat-movie-card" onclick="showMovieDetails(${movie.tmdb_id})">
+            <img src="${movie.poster_path || 'https://via.placeholder.com/80x120?text=No+Image'}" 
+                 alt="${movie.title}" 
+                 class="chat-movie-poster"
+                 onerror="this.src='https://via.placeholder.com/80x120?text=No+Image'">
+            <div class="chat-movie-info">
+                <div class="chat-movie-title">${movie.title}</div>
+                <div class="chat-movie-year">${movie.year || 'N/A'}</div>
+                ${movie.overview ? `<div class="chat-movie-overview">${movie.overview}</div>` : ''}
+            </div>
+        </div>
+    `).join('');
+    
+    contentDiv.innerHTML = `
+        <strong>Here are some movies you might like:</strong>
+        <div class="chat-suggestions-grid">
+            ${moviesHtml}
+        </div>
+    `;
+    
+    suggestionsDiv.appendChild(contentDiv);
+    messagesContainer.appendChild(suggestionsDiv);
+    
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+}
+
+async function resetChat() {
+    try {
+        await fetch(`${API_BASE_URL}/chat/reset`, {
+            method: 'POST',
+            headers: getAuthHeaders()
+        });
+        
+        // Clear chat messages except the initial greeting
+        const messagesContainer = document.getElementById('chatMessages');
+        messagesContainer.innerHTML = `
+            <div class="chat-message bot-message">
+                <div class="message-content">
+                    Hi! I'm your movie assistant. I can help you discover great movies based on your taste. What kind of movies are you in the mood for?
+                </div>
+            </div>
+        `;
+    } catch (error) {
+        console.error('Reset chat error:', error);
+    }
+}
+
+// Initialize chat when DOM is ready
+document.addEventListener('DOMContentLoaded', function() {
+    initializeTabs();
+    initializeUpload();
+    initializeSearch();
+    initializeRecommendations();
+    initializeChat();
+    loadCollection();
+});
+
+
+// ============ AUTHENTICATION ============
+
+function checkAuth() {
+    if (authToken && currentUser) {
+        showMainApp();
+    } else {
+        showAuthModal();
+    }
+}
+
+function showAuthModal() {
+    document.getElementById('authModal').classList.remove('hidden');
+    document.querySelector('main').style.display = 'none';
+    document.querySelector('header').style.display = 'none';
+    
+    document.getElementById('loginForm').addEventListener('submit', handleLogin);
+    document.getElementById('signupForm').addEventListener('submit', handleSignup);
+}
+
+function showMainApp() {
+    document.getElementById('authModal').classList.add('hidden');
+    document.querySelector('main').style.display = 'block';
+    document.querySelector('header').style.display = 'block';
+    
+    updateUserDisplay();
+    document.getElementById('logoutBtn').addEventListener('click', handleLogout);
+}
+
+function toggleAuthForm(event) {
+    event.preventDefault();
+    document.getElementById('loginForm').classList.toggle('active');
+    document.getElementById('signupForm').classList.toggle('active');
+}
+
+async function handleLogin(event) {
+    event.preventDefault();
+    
+    const username = document.getElementById('loginUsername').value;
+    const password = document.getElementById('loginPassword').value;
+    
+    try {
+        const response = await fetch(`${API_BASE_URL}/auth/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+            authToken = data.access_token;
+            currentUser = data.user;
+            
+            localStorage.setItem('authToken', authToken);
+            localStorage.setItem('currentUser', JSON.stringify(currentUser));
+            
+            showMainApp();
+            showStatus('loginStatus', 'Login successful!', 'success');
+        } else {
+            showStatus('loginStatus', data.error || 'Login failed', 'error');
+        }
+    } catch (error) {
+        console.error('Login error:', error);
+        showStatus('loginStatus', 'Network error', 'error');
+    }
+}
+
+async function handleSignup(event) {
+    event.preventDefault();
+    
+    const username = document.getElementById('signupUsername').value;
+    const email = document.getElementById('signupEmail').value;
+    const password = document.getElementById('signupPassword').value;
+    
+    try {
+        const response = await fetch(`${API_BASE_URL}/auth/signup`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, email, password })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+            authToken = data.access_token;
+            currentUser = data.user;
+            
+            localStorage.setItem('authToken', authToken);
+            localStorage.setItem('currentUser', JSON.stringify(currentUser));
+            
+            showMainApp();
+            showStatus('signupStatus', 'Account created successfully!', 'success');
+        } else {
+            showStatus('signupStatus', data.error || 'Signup failed', 'error');
+        }
+    } catch (error) {
+        console.error('Signup error:', error);
+        showStatus('signupStatus', 'Network error', 'error');
+    }
+}
+
+function handleLogout() {
+    authToken = null;
+    currentUser = null;
+    
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('currentUser');
+    
+    document.getElementById('loginForm').reset();
+    document.getElementById('signupForm').reset();
+    document.getElementById('loginForm').classList.add('active');
+    document.getElementById('signupForm').classList.remove('active');
+    
+    showAuthModal();
+}
+
+function updateUserDisplay() {
+    if (currentUser) {
+        document.getElementById('userDisplay').textContent = `Welcome, ${currentUser.username}!`;
+    }
+}
+
+function getAuthHeaders() {
+    return {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authToken}`
+    };
 }

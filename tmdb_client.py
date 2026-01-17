@@ -241,3 +241,37 @@ class TMDbClient:
                     return all_movies
         
         return all_movies
+    
+    def get_similar_movies(self, tmdb_id: int, limit: int = 50) -> List[Dict]:
+        """
+        Get movies similar to a given movie
+        Uses TMDb's similarity algorithm
+        """
+        data = self._make_request(f'movie/{tmdb_id}/similar', {'page': 1})
+        
+        if not data or 'results' not in data:
+            return []
+        
+        similar_movies = []
+        for movie in data['results'][:limit]:
+            release_year = None
+            if movie.get('release_date'):
+                try:
+                    release_year = int(movie['release_date'][:4])
+                except (ValueError, IndexError):
+                    pass
+            
+            genre_ids = movie.get('genre_ids', [])
+            
+            similar_movies.append({
+                'tmdb_id': movie['id'],
+                'title': movie['title'],
+                'year': release_year,
+                'genre_ids': genre_ids,
+                'overview': movie.get('overview', ''),
+                'rating': movie.get('vote_average', 0),
+                'popularity': movie.get('popularity', 0),
+                'poster_path': f"{self.image_base_url}{movie['poster_path']}" if movie.get('poster_path') else None
+            })
+        
+        return similar_movies

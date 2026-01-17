@@ -111,20 +111,49 @@ class RecommendationEngine:
         }
     
     def _get_candidate_movies(self, user_movies: List[Dict]) -> List[Dict]:
-        """Get candidate movies for recommendations (exclude user's history)"""
-        # Get popular movies from TMDb
-        candidates = self.tmdb_client.get_popular_movies(limit=1000)
-        
-        # Exclude movies user has already seen
+        """Get candidate movies for recommendations (similar to user's highly-rated movies)"""
+        # Get all movies from user's collection (not just highly-rated)
+        # This gives us a better sense of what the user likes
+        candidates = []
         user_tmdb_ids = {m['tmdb_id'] for m in user_movies}
-        candidates = [c for c in candidates if c['tmdb_id'] not in user_tmdb_ids]
         
-        return candidates
+        # For each movie in user's collection, find similar movies
+        # Prioritize highly-rated movies but include all for diversity
+        sorted_movies = sorted(user_movies, key=lambda x: x.get('rating', 0), reverse=True)
+        
+        for movie in sorted_movies[:10]:  # Get similar movies for top 10 rated movies
+            try:
+                # Get similar movies from TMDb
+                similar = self.tmdb_client.get_similar_movies(movie['tmdb_id'], limit=50)
+                
+                # Filter out movies user has already seen
+                for sim_movie in similar:
+                    if sim_movie['tmdb_id'] not in user_tmdb_ids:
+                        # Check if already in candidates
+                        if not any(c['tmdb_id'] == sim_movie['tmdb_id'] for c in candidates):
+                            candidates.append(sim_movie)
+            except Exception as e:
+                logger.warning(f"Could not get similar movies for {movie['tmdb_id']}: {str(e)}")
+        
+        # If we don't have enough similar movies, supplement with popular movies
+        if len(candidates) < 100:
+            try:
+                popular = self.tmdb_client.get_popular_movies(limit=200)
+                for movie in popular:
+                    if movie['tmdb_id'] not in user_tmdb_ids:
+                        if not any(c['tmdb_id'] == movie['tmdb_id'] for c in candidates):
+                            candidates.append(movie)
+                            if len(candidates) >= 300:
+                                break
+            except Exception as e:
+                logger.warning(f"Could not get popular movies: {str(e)}")
+        
+        return candidates[:300]  # Return top 300 candidates
     
     def _score_candidates(self, candidates: List[Dict], user_profile: Dict) -> List[Dict]:
         """
         Score candidate movies using weighted content-based filtering
-        Weights: Genre 40%, Rating Similarity 30%, Popularity 20%, Recency 10%
+        Weights: Genre 35%, Rating Quality 35%, Popularity 20%, Recency 10%
         """
         scored_candidates = []
         
@@ -133,24 +162,24 @@ class RecommendationEngine:
         decade_preferences = user_profile['decade_preferences']
         
         for candidate in candidates:
-            # Genre score (40% weight)
+            # Genre score (35% weight) - how well genres match user preferences
             genre_score = self._calculate_genre_score(
                 candidate.get('genre_ids', []),
                 genre_preferences
             )
             
-            # Rating similarity score (30% weight)
+            # Rating quality score (35% weight) - how well-rated the movie is
             rating_score = self._calculate_rating_score(
                 candidate.get('rating', 0),
                 avg_rating
             )
             
-            # Popularity score (20% weight)
+            # Popularity score (20% weight) - how popular/acclaimed the movie is
             popularity_score = self._calculate_popularity_score(
                 candidate.get('popularity', 0)
             )
             
-            # Recency score (10% weight)
+            # Recency score (10% weight) - preference for recent movies
             recency_score = self._calculate_recency_score(
                 candidate.get('year'),
                 decade_preferences
@@ -158,8 +187,8 @@ class RecommendationEngine:
             
             # Calculate weighted total score (0-100)
             total_score = (
-                genre_score * 0.40 +
-                rating_score * 0.30 +
+                genre_score * 0.35 +
+                rating_score * 0.35 +
                 popularity_score * 0.20 +
                 recency_score * 0.10
             )
@@ -193,14 +222,14 @@ class RecommendationEngine:
         if not genres:
             return 50.0
         
-        # Calculate match score
+        # Calculate match score - boost for preferred genres
         match_scores = []
         for genre in genres:
             if genre in genre_preferences:
-                # Apply 1.5x weight factor for preferred genres
-                match_scores.append(genre_preferences[genre] * 1.5)
+                # Strong boost for preferred genres
+                match_scores.append(genre_preferences[genre] * 2.0)
             else:
-                match_scores.append(0.1)  # Small score for non-preferred genres
+                match_scores.append(0.2)  # Small penalty for non-preferred genres
         
         # Average and normalize to 0-100
         avg_match = np.mean(match_scores)
@@ -209,17 +238,21 @@ class RecommendationEngine:
         return score
     
     def _calculate_rating_score(self, movie_rating: float, user_avg_rating: float) -> float:
-        """Calculate rating similarity score (0-100)"""
+        """Calculate rating quality score (0-100)"""
         if not movie_rating:
             return 50.0  # Neutral score
         
-        # Calculate difference from user's average rating
-        diff = abs(movie_rating - user_avg_rating)
-        
-        # Convert to 0-100 score (smaller diff = higher score)
-        score = max(0, 100 - (diff * 10))
-        
-        return score
+        # Reward highly-rated movies (8.0+)
+        if movie_rating >= 8.0:
+            return 90.0
+        elif movie_rating >= 7.5:
+            return 80.0
+        elif movie_rating >= 7.0:
+            return 70.0
+        elif movie_rating >= 6.5:
+            return 60.0
+        else:
+            return 50.0
     
     def _calculate_popularity_score(self, popularity: float) -> float:
         """Calculate popularity score (0-100)"""

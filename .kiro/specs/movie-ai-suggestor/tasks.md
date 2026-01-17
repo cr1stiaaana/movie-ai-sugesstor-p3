@@ -214,7 +214,8 @@ The workspace contains a basic frontend-only movie tracker with localStorage, bu
     - Optimize animations for performance
     - _Requirements: 6.3_
 
-- [ ] 8. Update frontend JavaScript logic (app.js)
+- [-] 8. Update frontend JavaScript logic (app.js)
+
   - [ ] 8.1 Implement CSV file upload with validation
     - Add file type validation (CSV only)
     - Implement drag-and-drop support

@@ -1,4 +1,4 @@
-`<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -7,15 +7,63 @@
     <link rel="stylesheet" href="stylesheet.css">
 </head>
 <body>
+    <!-- Auth Modal -->
+    <div id="authModal" class="auth-modal">
+        <div class="auth-container">
+            <div class="auth-header">
+                <h1>🎬 Movie AI Suggestor</h1>
+            </div>
+            
+            <!-- Login Form -->
+            <form id="loginForm" class="auth-form active">
+                <h2>Login</h2>
+                <div class="form-group">
+                    <input type="text" id="loginUsername" placeholder="Username" required>
+                </div>
+                <div class="form-group">
+                    <input type="password" id="loginPassword" placeholder="Password" required>
+                </div>
+                <button type="submit" class="btn-primary">Login</button>
+                <p class="auth-toggle">Don't have an account? <a href="#" onclick="toggleAuthForm(event)">Sign Up</a></p>
+                <div id="loginStatus" class="status-message"></div>
+            </form>
+            
+            <!-- Signup Form -->
+            <form id="signupForm" class="auth-form">
+                <h2>Sign Up</h2>
+                <div class="form-group">
+                    <input type="text" id="signupUsername" placeholder="Username" required>
+                </div>
+                <div class="form-group">
+                    <input type="email" id="signupEmail" placeholder="Email" required>
+                </div>
+                <div class="form-group">
+                    <input type="password" id="signupPassword" placeholder="Password (min 6 chars)" required>
+                </div>
+                <button type="submit" class="btn-primary">Sign Up</button>
+                <p class="auth-toggle">Already have an account? <a href="#" onclick="toggleAuthForm(event)">Login</a></p>
+                <div id="signupStatus" class="status-message"></div>
+            </form>
+        </div>
+    </div>
+
     <header>
-        <h1>🎬 Movie AI Suggestor</h1>
-        <p>Get personalized movie recommendations powered by machine learning</p>
+        <div class="header-content">
+            <h1>🎬 Movie AI Suggestor</h1>
+            <p>Get personalized movie recommendations powered by machine learning</p>
+        </div>
+        <div class="header-user">
+            <button id="themeToggle" class="btn-theme" title="Toggle dark theme">🌙</button>
+            <span id="userDisplay"></span>
+            <button id="logoutBtn" class="btn-secondary">Logout</button>
+        </div>
     </header>
 
     <main class="container">
         <nav class="tabs">
             <button class="tab-btn active" data-tab="import">Import Movies</button>
             <button class="tab-btn" data-tab="add">Add Movie</button>
+            <button class="tab-btn" data-tab="chat">AI Chat</button>
             <button class="tab-btn" data-tab="recommendations">Recommendations</button>
             <button class="tab-btn" data-tab="collection">My Collection</button>
         </nav>
@@ -44,6 +92,12 @@
                         <li><strong>Letterboxd:</strong> Name, Year, Rating, Watched Date</li>
                     </ul>
                 </div>
+
+                <div class="help-box">
+                    <h3>💡 How to Export Your Letterboxd Data:</h3>
+                    <p>To export your movie data from Letterboxd, visit: <a href="https://letterboxd.com/user/exportdata/" target="_blank">https://letterboxd.com/user/exportdata/</a></p>
+                    <p>Then upload the CSV file here to import all your movies!</p>
+                </div>
             </div>
         </section>
 
@@ -65,13 +119,41 @@
             </div>
         </section>
 
+        <!-- AI Chat Tab -->
+        <section id="chat-tab" class="tab-content">
+            <div class="card">
+                <h2>🤖 AI Movie Assistant</h2>
+                <p>Chat with our AI to discover movies based on your preferences</p>
+                
+                <div id="chatContainer" class="chat-container">
+                    <div id="chatMessages" class="chat-messages">
+                        <div class="chat-message bot-message">
+                            <div class="message-content">
+                                Hi! I'm your movie assistant. I can help you discover great movies based on your taste. What kind of movies are you in the mood for?
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <form id="chatForm" class="chat-input-form">
+                        <input type="text" id="chatInput" placeholder="Ask me about movies..." autocomplete="off" required>
+                        <button type="submit" class="btn-primary">Send</button>
+                    </form>
+                </div>
+                
+                <button id="resetChatBtn" class="btn-secondary">Reset Conversation</button>
+            </div>
+        </section>
+
         <!-- Recommendations Tab -->
         <section id="recommendations-tab" class="tab-content">
             <div class="card">
                 <h2>🎯 Your Personalized Recommendations</h2>
                 <p>Based on your viewing history and preferences</p>
                 
-                <button id="generateBtn" class="btn-primary">Generate Recommendations</button>
+                <div class="recommendations-controls">
+                    <button id="generateBtn" class="btn-primary">Generate Recommendations</button>
+                    <button id="loadMoreBtn" class="btn-secondary" style="display:none;">Load More</button>
+                </div>
                 
                 <div id="recommendationsStatus" class="status-message"></div>
                 <div id="recommendationsList" class="recommendations-grid"></div>
@@ -82,6 +164,7 @@
         <section id="collection-tab" class="tab-content">
             <div class="card">
                 <h2>📚 My Movie Collection</h2>
+                <div id="collectionStatus" class="status-message"></div>
                 <div id="collectionCount" class="collection-count"></div>
                 <div id="collectionList" class="collection-grid"></div>
             </div>
