@@ -12730,3 +12730,13 @@ Please retry in 4.685135003s. [links {
 2026-01-18 01:54:49,073 - werkzeug - INFO - 127.0.0.1 - - [18/Jan/2026 01:54:49] "GET /api/movies HTTP/1.1" 200 -
 2026-01-18 01:54:53,880 - werkzeug - INFO - 127.0.0.1 - - [18/Jan/2026 01:54:53] "GET /api/movies HTTP/1.1" 200 -
 2026-01-18 01:54:54,149 - werkzeug - INFO - 127.0.0.1 - - [18/Jan/2026 01:54:54] "GET /api/movies HTTP/1.1" 200 -
+2026-01-18 01:54:58,710 - werkzeug - INFO - 127.0.0.1 - - [18/Jan/2026 01:54:58] "OPTIONS /api/movies HTTP/1.1" 200 -
+2026-01-18 01:54:59,014 - werkzeug - INFO - 127.0.0.1 - - [18/Jan/2026 01:54:59] "OPTIONS /api/movies HTTP/1.1" 200 -
+2026-01-18 01:54:59,019 - werkzeug - INFO - 127.0.0.1 - - [18/Jan/2026 01:54:59] "GET /api/movies HTTP/1.1" 200 -
+2026-01-18 01:54:59,331 - werkzeug - INFO - 127.0.0.1 - - [18/Jan/2026 01:54:59] "GET /api/movies HTTP/1.1" 200 -
+2026-01-18 01:55:05,312 - werkzeug - INFO - 127.0.0.1 - - [18/Jan/2026 01:55:05] "OPTIONS /api/movies HTTP/1.1" 200 -
+2026-01-18 01:55:05,315 - werkzeug - INFO - 127.0.0.1 - - [18/Jan/2026 01:55:05] "OPTIONS /api/movies HTTP/1.1" 200 -
+2026-01-18 01:55:05,581 - werkzeug - INFO - 127.0.0.1 - - [18/Jan/2026 01:55:05] "GET /api/movies HTTP/1.1" 200 -
+2026-01-18 01:55:05,673 - werkzeug - INFO - 127.0.0.1 - - [18/Jan/2026 01:55:05] "GET /api/movies HTTP/1.1" 200 -
+2026-01-18 01:55:05,917 - werkzeug - INFO - 127.0.0.1 - - [18/Jan/2026 01:55:05] "GET /api/movies HTTP/1.1" 200 -
+2026-01-18 01:55:06,041 - werkzeug - INFO - 127.0.0.1 - - [18/Jan/2026 01:55:06] "GET /api/movies HTTP/1.1" 200 -
